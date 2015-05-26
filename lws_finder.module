@@ -1,0 +1,321 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function lws_finder_menu() {
+  $items = array();
+  // menu path to redirect to a site node page using the site name as a parameter
+  $items['lws_finder/site/route'] = array(
+    'page callback' => 'lws_finder_site_route',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK
+  );
+  // menu path to retrieve the teaser for a site page, to embed into the panel on the LWS finder page.
+  $items['lws_finder/site/teaser'] = array(
+    'page callback' => 'lws_finder_site_teaser',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_block_info().
+ * Defines the LWS Finder block.
+ */
+function lws_finder_block_info() {
+  $blocks = array();
+  $blocks['lws_finder_filter_pane'] = array(
+    'info' => t('LWS Finder filter pane'),
+    'cache' => DRUPAL_CACHE_GLOBAL
+  );
+  $blocks['lws_finder_map_pane'] = array(
+    'info' => t('LWS Finder map pane'),
+    'cache' => DRUPAL_CACHE_GLOBAL
+  );
+  $blocks['lws_finder_click_info_pane'] = array(
+    'info' => t('LWS Finder click info pane'),
+    'cache' => DRUPAL_CACHE_GLOBAL
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function lws_finder_block_view($delta = '') {
+  $block = array();
+  switch ($delta) {
+    case 'lws_finder_filter_pane':
+      $block['content'] = array(
+        '#markup' => _lws_finder_filter_pane_markup(),
+      );
+      break;
+    case 'lws_finder_map_pane':
+      $block['content'] = array(
+        '#markup' => _lws_finder_map_pane_markup(),
+      );
+      break;
+    case 'lws_finder_click_info_pane':
+      $block['content'] = array(
+        '#markup' => _lws_finder_click_info_pane_markup(),
+      );
+      break;
+  }
+  return $block;
+}
+
+/**
+ * Implements hook_block_configure().
+ */
+function lws_finder_block_configure($delta = '') {
+  $form = array();
+  if ($delta === 'lws_finder_filter_pane' || $delta === 'lws_finder_map_pane') {
+    iform_load_helpers(array('data_entry_helper'));
+    $readAuth = data_entry_helper::get_read_auth(variable_get('indicia_website_id'), variable_get('indicia_password'));
+    $locationTypes = data_entry_helper::get_population_data(array(
+      'table' => 'termlists_term',
+      'extraParams' => $readAuth + array('view' => 'cache', 'termlist_title' => 'Location types',
+          'orderby' => 'sort_order,term'),
+      'caching' => FALSE
+    ));
+    $options = array('' => t('<please select>'));
+    foreach ($locationTypes as $termDef) {
+      $options[$termDef['id']] = $termDef['term'];
+    }
+    $form['lws_finder_district_location_type'] = array(
+      '#type' => 'select',
+      '#title' => t('Location type for district data'),
+      '#default_value' => variable_get('lws_finder_district_location_type'),
+      '#options' => $options,
+      '#required' => TRUE
+    );
+    $form['lws_finder_parish_location_type'] = array(
+      '#type' => 'select',
+      '#title' => t('Location type for parish data'),
+      '#default_value' => variable_get('lws_finder_parish_location_type'),
+      '#options' => $options,
+      '#required' => TRUE
+    );
+    $form['lws_finder_lws_location_type'] = array(
+      '#type' => 'select',
+      '#title' => t('Location type for Local Wildlife Site data'),
+      '#default_value' => variable_get('lws_finder_lws_location_type'),
+      '#options' => $options,
+      '#required' => TRUE
+    );
+    // Get a list of all available content types to choose from
+    $types = node_type_get_types();
+    $options = array();
+    foreach ($types as $type => $def)
+      $options[$type] = $def->name;
+    $form['lws_finder_lws_content_type'] = array(
+      '#type' => 'select',
+      '#title' => t('Content type for Local Wildlife Site nodes'),
+      '#default_value' => variable_get('lws_finder_lws_content_type'),
+      '#options' => $options,
+      '#required' => TRUE,
+      '#description' => t('Ensure that you create nodes of the selected type to match each of the LWS site names.')
+    );
+    $form['lws_finder_lws_condition_field'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Drupal field for the condition data'),
+      '#description' => t('Should belong to the content type identified above'),
+      '#default_value' => variable_get('lws_finder_lws_condition_field'),
+      '#required' => TRUE
+    );
+
+  }
+  return $form;
+}
+
+/**
+ * Implements hook_block_save().
+ */
+function lws_finder_block_save($delta = '', $edit = array()) {
+  if ($delta === 'lws_finder_filter_pane' || $delta === 'lws_finder_map_pane') {
+    variable_set('lws_finder_district_location_type', $edit['lws_finder_district_location_type']);
+    variable_set('lws_finder_parish_location_type', $edit['lws_finder_parish_location_type']);
+    variable_set('lws_finder_lws_location_type', $edit['lws_finder_lws_location_type']);
+    variable_set('lws_finder_lws_content_type', $edit['lws_finder_lws_content_type']);
+    variable_set('lws_finder_lws_condition_field', $edit['lws_finder_lws_condition_field']);
+  }
+}
+
+function _lws_finder_filter_pane_markup() {
+  if (!_lws_finder_variables_complete())
+    return '';
+  iform_load_helpers(array('report_helper', 'data_entry_helper'));
+  $readAuth = report_helper::get_read_auth(variable_get('indicia_website_id'), variable_get('indicia_password'));
+  $r = '';
+  $r .= data_entry_helper::select(array(
+    'fieldname' => 'districts-select',
+    'label' => lang::get('District'),
+    'table' => 'location',
+    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_district_location_type')),
+    'valueField' => 'id',
+    'captionField' => 'name',
+    'blankText' => lang::get('<please select>')
+  ));
+  $r .= data_entry_helper::select(array(
+    'fieldname' => 'parishes-select',
+    'label' => lang::get('Parish'),
+    'table' => 'location',
+    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_parish_location_type')),
+    'valueField' => 'id',
+    'captionField' => 'name',
+    'blankText' => lang::get('<please select>')
+  ));
+  // We also need to let the JS know about the available options for the condition field
+  $field_info = field_info_field(variable_get('lws_finder_lws_condition_field'));
+  $r .= data_entry_helper::select(array(
+    'fieldname' => 'lws-condition-select',
+    'label' => lang::get('Condition'),
+    'blankText' => lang::get('<please select>'),
+    'lookupValues' => $field_info['settings']['allowed_values']
+  ));
+  $r .= data_entry_helper::select(array(
+    'fieldname' => 'lws-select',
+    'label' => lang::get('Local Wildlife Sites'),
+    'table' => 'location',
+    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_lws_location_type')),
+    'valueField' => 'id',
+    'captionField' => 'name',
+    'blankText' => lang::get('<please select>'),
+    'afterControl' => '<button type="button" id="view-lws">' . lang::get('View') . '</button>'
+  ));
+  $reportRequestPath = variable_get('indicia_base_url') . 'index.php/services/report/requestReport?' .
+      "auth_token=$readAuth[auth_token]&nonce=$readAuth[nonce]&reportSource=local&";
+  data_entry_helper::$javascript .= "indiciaData.reportRequestPath='$reportRequestPath';\n";
+  data_entry_helper::$javascript .= "indiciaData.districtTypeId=" . variable_get('lws_finder_district_location_type') . ";\n";
+  data_entry_helper::$javascript .= "indiciaData.parishTypeId=" . variable_get('lws_finder_parish_location_type') . ";\n";
+  data_entry_helper::$javascript .= "indiciaData.lwsTypeId=" . variable_get('lws_finder_lws_location_type') . ";\n";
+  _lws_finder_sites_list_data();
+  return $r;
+}
+
+function _lws_finder_map_pane_markup() {
+  if (!_lws_finder_variables_complete())
+    return '';
+  iform_load_helpers(array('report_helper', 'map_helper'));
+  $readAuth = report_helper::get_read_auth(variable_get('indicia_website_id'), variable_get('indicia_password'));
+  $r = map_helper::map_panel(array(
+    'presetLayers' => array('google_streets'),
+    'clickForSpatialRef' => FALSE,
+    'initial_lat' >= variable_get('indicia_map_centroid_lat', 52),
+    'initial_long' >= variable_get('indicia_map_centroid_lon', -2),
+    'initial_zoom' >= variable_get('indicia_map_zoom', 5),
+    'width' => '100%',
+    'height' => 500,
+    'standardControls' => array('panZoomBar')
+  ));
+  // @todo Switch to a JS function that gets the node teaser into the lws-click-info div.
+  $r .= report_helper::report_map(array(
+    'readAuth' => $readAuth,
+    'dataSource' => 'library/locations/locations_list_mapping',
+    'extraParams' => array('location_type_id' => variable_get('lws_finder_lws_location_type')),
+    'clickable' => TRUE,
+    'clickableLayersOutputMode' => 'customFunction',
+    'customClickFn' => 'lws_click'
+  ));
+  handle_resources();
+  drupal_add_js(drupal_get_path('module', 'lws_finder') . '/lws_finder.js');
+  return $r;
+}
+
+function _lws_finder_click_info_pane_markup() {
+  return '<div id="lws-click-info">Info</div>';
+}
+
+/**
+ * Grabs the list of sites and their filterable attribute (site condition) and adds it to the
+ * JavaScript, so it can be used for filtering.
+ */
+function _lws_finder_sites_list_data() {
+  $query = new EntityFieldQuery();
+  $entities = $query->entityCondition('entity_type', 'node')
+    ->propertyCondition('type', variable_get('lws_finder_lws_content_type'))
+    ->propertyCondition('status', 1)
+    ->range(0,1)
+    ->execute();
+
+  if (!empty($entities['node'])) {
+    $nodes = $entities['node'];
+
+    // Attach the field data for the site condition field. Try to do this in a more efficient way than simply
+    // loading all nodes. First, we need the list of available fields
+    $fields = field_info_instances('node', variable_get('lws_finder_lws_content_type'));
+    // Get id of the condition field
+    $condition_field_id = $fields[variable_get('lws_finder_lws_condition_field')]['field_id'];
+    // Attach a field of selected id only to get value for it
+    field_attach_load('node', $nodes, FIELD_LOAD_CURRENT, array('field_id' => $condition_field_id));
+    // now we need to load the node titles. Seems we need a query to do this to avoid node_load overhead
+    $query = db_select('node', 'n')->fields('n', array('nid', 'title'))->condition('type', variable_get('lws_finder_lws_content_type'));
+    $titles = $query->execute()->fetchAllAssoc('nid');
+    foreach ($titles as $nid => $node)
+      $nodes[$nid]->title = $node->title;
+    // Simplify the node list into a form suitable for dropping into the data available to JS.
+    $siteList = array();
+    foreach ($nodes as $nid => $node) {
+      $siteList[$node->title] = $node->field_condition[LANGUAGE_NONE][0]['value'];
+    }
+    data_entry_helper::$javascript .= "indiciaData.siteConditions = ".json_encode($siteList).";\n";
+  } else {
+    return null;
+  }
+}
+
+function _lws_finder_variables_complete() {
+  static $messageShown = false;
+  $r = (variable_get('lws_finder_district_location_type')
+    && variable_get('lws_finder_parish_location_type')
+    && variable_get('lws_finder_lws_location_type')
+    && variable_get('lws_finder_lws_content_type')
+    && variable_get('lws_finder_lws_condition_field'));
+  if (!$r && !$messageShown) {
+    drupal_set_message(t('Unable to show LWS blocks as the block configuration is incomplete'), 'warning');
+    $messageShown = true;
+  }
+  return $r;
+}
+
+function _lws_finder_get_site_node($name) {
+  $query = new EntityFieldQuery();
+  $entities = $query->entityCondition('entity_type', 'node')
+    ->propertyCondition('type', variable_get('lws_finder_lws_content_type'))
+    ->propertyCondition('title', $name)
+    ->propertyCondition('status', 1)
+    ->range(0,1)
+    ->execute();
+
+  if (!empty($entities['node'])) {
+    $nodes = array_keys($entities['node']);
+    $node = node_load(array_shift($nodes));
+    return $node;
+  } else {
+    return null;
+  }
+}
+
+/**
+ * Menu handler which routes to view the site page for a site named in the query string.
+ */
+function lws_finder_site_route() {
+  $node = _lws_finder_get_site_node($_GET['name']);
+  if ($node) {
+    drupal_goto('node/' . $node->nid);
+  } else {
+    drupal_set_message(t("Content not found for site $_GET[name]"));
+    drupal_goto('<front>');
+  }
+}
+
+function lws_finder_site_teaser() {
+  $node = _lws_finder_get_site_node($_GET['name']);
+  if ($node) {
+    echo drupal_render(node_view($node, 'teaser'));
+  } else {
+    echo t("Content not found for site $_GET[name]");
+  }
+}

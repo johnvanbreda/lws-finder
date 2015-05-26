@@ -1,0 +1,7 @@
+; $Id$
+name = Local Wildlife Sites finder
+description = A module which creates a block for navigating to find Local Wildlife Sites by district, parish or status
+core = 7.x
+package = "Indicia"
+dependencies[] = iform
+version = "7.x-1.0"
