@@ -154,7 +154,7 @@ jQuery(document).ready(function($) {
   $('#view-lws').click(function() {
     if ($('#lws-select').val()) {
       // Redirect to a menu path which will lookup and route to the appropriate site node.
-      window.location = Drupal.settings.basePath + '/?q=lws_finder/site/route&name=' + encodeURIComponent(getSelectedLwsNodeTitle());
+      window.location = Drupal.settings.basePath + '?q=lws_finder/site/route&name=' + encodeURIComponent(getSelectedLwsNodeTitle());
     }
   });
 
