@@ -242,14 +242,14 @@ function _lws_finder_map_pane_markup() {
     'height' => 500,
     'standardControls' => array('panZoomBar')
   ));
-  // @todo Switch to a JS function that gets the node teaser into the lws-click-info div.
   $r .= report_helper::report_map(array(
     'readAuth' => $readAuth,
     'dataSource' => 'library/locations/locations_list_mapping',
     'extraParams' => array('location_type_id' => variable_get('lws_finder_lws_location_type')),
     'clickable' => TRUE,
     'clickableLayersOutputMode' => 'customFunction',
-    'customClickFn' => 'lws_click'
+    'customClickFn' => 'lws_click',
+    'caching' => TRUE
   ));
   handle_resources();
   drupal_add_js(drupal_get_path('module', 'lws_finder') . '/lws_finder.js');
