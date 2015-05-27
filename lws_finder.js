@@ -26,7 +26,7 @@ jQuery(document).ready(function($) {
   function limitSelectTo(type, locationId, locationTypeId) {
     var select = $('#' + type + '-select'), attrs='';
     // Run a report which loads items to add to the select according to the boundary of the parent's locationId
-    var reportRequest = indiciaData.reportRequestPath + 'report=library/locations/locations_list_mapping.xml&callback=?' +
+    var reportRequest = indiciaData.reportRequestPath + 'report=library/locations/locations_list_mapping.xml&callback=?&orderby=name' +
         '&parent_boundary_id=' + locationId + '&location_type_id=' + locationTypeId;
     $.getJSON(reportRequest,
       null,
@@ -46,16 +46,18 @@ jQuery(document).ready(function($) {
   }
 
   function applyConditionClasses() {
-    $.each($('#lws-select').find('option'), function() {
-      if (typeof indiciaData.siteConditions[$(this).attr('data-nodetitle')]!=="undefined") {
-        $(this).addClass(indiciaData.siteConditions[$(this).val()].toLowerCase().replace(/[^a-z0-9]/, '_'));
+    var nodeTitle;
+    $.each($('#lws-select').find('option[value^=]'), function() {
+      nodeTitle = getAnyLwsOptionNodeTitle(this);
+      if (typeof indiciaData.siteConditions[nodeTitle]!=="undefined") {
+        $(this).addClass('condition-'+indiciaData.siteConditions[nodeTitle].toLowerCase().replace(/[^a-z0-9]/, '_'));
       }
     });
   }
 
   function showOnlySelectedFeatures() {
     var i, selected=[];
-    $.each($('#lws-select').find('option'), function() {
+    $.each($('#lws-select').find('option:enabled'), function() {
       selected.push($(this).attr('data-code'));
     });
     for(i = 0; i < indiciaData.reportlayer.features.length; i++) {
@@ -85,12 +87,17 @@ jQuery(document).ready(function($) {
     var $select = $('#lws-select');
     $select.val('');
     if ($('#lws-condition-select').val()) {
-      $select.find('option').hide();
-      $select.find('option.' + $('#lws-condition-select').val().toLowerCase().replace(/[^a-z0-9]/, '_')).show();
+      $select.find('option[value^=]').attr('disabled', true);
+      $select.find('option.condition-' + $('#lws-condition-select').val().toLowerCase().replace(/[^a-z0-9]/, '_')).removeAttr('disabled');
     }
     else {
-      $select.find('option').show();
+      $select.find('option').removeAttr('disabled');
     }
+  }
+
+  function changeCondition() {
+    applyConditionFilter();
+    showOnlySelectedFeatures();
   }
 
   function changeLws(e) {
@@ -98,7 +105,7 @@ jQuery(document).ready(function($) {
     if (locationId) {
       putOnMap(locationId);
       $.get(
-        Drupal.settings.basePath + '/?q=lws_finder/site/teaser&name=' + encodeURIComponent(getSelectedLwsNodeTitle()),
+        Drupal.settings.basePath + '?q=lws_finder/site/teaser&name=' + encodeURIComponent(getSelectedLwsNodeTitle()),
         function (data) {
           $('#lws-click-info').html(data);
         }
@@ -113,19 +120,22 @@ jQuery(document).ready(function($) {
    * from the template defined in block configuration.
    * @returns string
    */
-  function getSelectedLwsNodeTitle() {
-    var $selected = $('#lws-select').find('option:selected'),
-      id = $selected.val(),
-      name = $selected.text(),
-      code = $selected.attr('data-code');
+  function getAnyLwsOptionNodeTitle(option) {
+    var id = $(option).val(),
+      name = $(option).text(),
+      code = $(option).attr('data-code');
     return indiciaData.lwsNodeTitleTemplate.replace('{id}', id).replace('{name}', name).replace('{code}', code);
+  }
+
+  function getSelectedLwsNodeTitle() {
+    return getAnyLwsOptionNodeTitle($('#lws-select').find('option:selected'));
   }
 
   lws_click = function(features) {
     if (features.length>0) {
       $('#lws-select').find('option[data-code="' + features[0].attributes.code + '"]').attr('selected', true);
       $.get(
-        Drupal.settings.basePath + '/?q=lws_finder/site/teaser&name=' + encodeURIComponent(getSelectedLwsNodeTitle()),
+        Drupal.settings.basePath + '?q=lws_finder/site/teaser&name=' + encodeURIComponent(getSelectedLwsNodeTitle()),
         function(data) {
           $('#lws-click-info').html(data);
         }
@@ -137,7 +147,7 @@ jQuery(document).ready(function($) {
 
   $('#parishes-select').change(changeParish);
 
-  $('#lws-condition-select').change(applyConditionFilter);
+  $('#lws-condition-select').change(changeCondition);
 
   $('#lws-select').change(changeLws);
 

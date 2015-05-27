@@ -161,7 +161,8 @@ function _lws_finder_filter_pane_markup() {
     'fieldname' => 'districts-select',
     'label' => lang::get('District'),
     'table' => 'location',
-    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_district_location_type')),
+    'extraParams' => $readAuth + array(
+        'location_type_id' => variable_get('lws_finder_district_location_type'), 'orderby' => 'name'),
     'valueField' => 'id',
     'captionField' => 'name',
     'blankText' => lang::get('<please select>')
@@ -170,18 +171,25 @@ function _lws_finder_filter_pane_markup() {
     'fieldname' => 'parishes-select',
     'label' => lang::get('Parish'),
     'table' => 'location',
-    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_parish_location_type')),
+    'extraParams' => $readAuth + array(
+        'location_type_id' => variable_get('lws_finder_parish_location_type'), 'orderby' => 'name'),
     'valueField' => 'id',
     'captionField' => 'name',
     'blankText' => lang::get('<please select>')
   ));
   // We also need to let the JS know about the available options for the condition field
   $field_info = field_info_field(variable_get('lws_finder_lws_condition_field'));
+  if ($field_info['type']==='taxonomy_term_reference') {
+    $allowedValues = taxonomy_allowed_values($field_info);
+  }
+  else {
+    $allowedValues = list_allowed_values($field_info);
+  }
   $r .= data_entry_helper::select(array(
     'fieldname' => 'lws-condition-select',
     'label' => lang::get('Condition'),
     'blankText' => lang::get('<please select>'),
-    'lookupValues' => $field_info['settings']['allowed_values']
+    'lookupValues' => $allowedValues
   ));
   $r .= _lws_finder_lws_select_ctrl($readAuth);
   $reportRequestPath = variable_get('indicia_base_url') . 'index.php/services/report/requestReport?' .
@@ -200,7 +208,8 @@ function _lws_finder_lws_select_ctrl($readAuth) {
   $sitesLabel = lang::get('Local Wildlife Sites');
   $sites = data_entry_helper::get_population_data(array(
     'table' => 'location',
-    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_lws_location_type'), 'orderby' => 'code,name')
+    'extraParams' => $readAuth + array(
+        'location_type_id' => variable_get('lws_finder_lws_location_type'), 'orderby' => 'name')
   ));
   $options = array('<option value="">&lt;' . lang::get('please select') . '&gt;</option>');
   foreach ($sites as $site) {
@@ -284,8 +293,15 @@ function _lws_finder_sites_list_data() {
     }
     // Simplify the node list into a form suitable for dropping into the data available to JS.
     $siteList = array();
+    $conditionField = variable_get('lws_finder_lws_condition_field');
     foreach ($nodes as $nid => $node) {
-      $siteList[$node->title] = $node->field_condition[LANGUAGE_NONE][0]['value'];
+      $field = $node->$conditionField;
+      // use the term reference if available, though field might be a normal select with allowed values
+      if (isset($field[LANGUAGE_NONE][0]['tid']))
+        $value = $field[LANGUAGE_NONE][0]['tid'];
+      else
+        $value = isset($field[LANGUAGE_NONE][0]['value']) ? $field[LANGUAGE_NONE][0]['tid'] : '';
+      $siteList[$node->title] = $value;
     }
     data_entry_helper::$javascript .= "indiciaData.siteConditions = ".json_encode($siteList).";\n";
   } else {
