@@ -3,7 +3,7 @@ var lws_click;
 jQuery(document).ready(function($) {
 
   function putOnMap(locationId) {
-    reportRequest = indiciaData.reportRequestPath + 'report=library/locations/locations_list_mapping.xml&callback=?' +
+    var reportRequest = indiciaData.reportRequestPath + 'report=library/locations/locations_list_mapping.xml&callback=?' +
     '&id=' + locationId + '&location_type_id=';
     $.getJSON(reportRequest,
       null,
@@ -19,12 +19,14 @@ jQuery(document).ready(function($) {
 
   /**
    * Limits the parishes or sites in a drop down list to the parent in the site hierarchy.
-   * @param locationId
+   * @param string type Which select type is being limited, lws, parish or district?
+   * @param integer locationId Warehouse location ID
+   * @param integer locationTypeId Layer's location type ID.
    */
   function limitSelectTo(type, locationId, locationTypeId) {
     var select = $('#' + type + '-select'), attrs='';
     // Run a report which loads items to add to the select according to the boundary of the parent's locationId
-    reportRequest = indiciaData.reportRequestPath + 'report=library/locations/locations_list_mapping.xml&callback=?' +
+    var reportRequest = indiciaData.reportRequestPath + 'report=library/locations/locations_list_mapping.xml&callback=?' +
         '&parent_boundary_id=' + locationId + '&location_type_id=' + locationTypeId;
     $.getJSON(reportRequest,
       null,
@@ -44,8 +46,7 @@ jQuery(document).ready(function($) {
   }
 
   function applyConditionClasses() {
-    var attrs;
-    $.each($('#lws-select option'), function() {
+    $.each($('#lws-select').find('option'), function() {
       if (typeof indiciaData.siteConditions[$(this).attr('data-nodetitle')]!=="undefined") {
         $(this).addClass(indiciaData.siteConditions[$(this).val()].toLowerCase().replace(/[^a-z0-9]/, '_'));
       }
@@ -54,10 +55,10 @@ jQuery(document).ready(function($) {
 
   function showOnlySelectedFeatures() {
     var i, selected=[];
-    $.each($('#lws-select option'), function() {
+    $.each($('#lws-select').find('option'), function() {
       selected.push($(this).attr('data-code'));
     });
-    for( var i = 0; i < indiciaData.reportlayer.features.length; i++ ) {
+    for(i = 0; i < indiciaData.reportlayer.features.length; i++) {
       if ($.inArray(indiciaData.reportlayer.features[i].attributes.code, selected)>-1) {
         indiciaData.reportlayer.features[i].style = null;
       } else {
@@ -81,13 +82,14 @@ jQuery(document).ready(function($) {
   }
 
   function applyConditionFilter() {
-    $('#lws-select').val('');
+    var $select = $('#lws-select');
+    $select.val('');
     if ($('#lws-condition-select').val()) {
-      $('#lws-select').find('option').hide();
-      $('#lws-select').find('option.' + $('#lws-condition-select').val().toLowerCase().replace(/[^a-z0-9]/, '_')).show();
+      $select.find('option').hide();
+      $select.find('option.' + $('#lws-condition-select').val().toLowerCase().replace(/[^a-z0-9]/, '_')).show();
     }
     else {
-      $('#lws-select').find('option').show();
+      $select.find('option').show();
     }
   }
 
@@ -112,7 +114,7 @@ jQuery(document).ready(function($) {
    * @returns string
    */
   function getSelectedLwsNodeTitle() {
-    var $selected = $('#lws-select option:selected'),
+    var $selected = $('#lws-select').find('option:selected'),
       id = $selected.val(),
       name = $selected.text(),
       code = $selected.attr('data-code');
@@ -121,7 +123,7 @@ jQuery(document).ready(function($) {
 
   lws_click = function(features) {
     if (features.length>0) {
-      $('#lws-select option[data-code="' + features[0].attributes.code + '"]').attr('selected', true);
+      $('#lws-select').find('option[data-code="' + features[0].attributes.code + '"]').attr('selected', true);
       $.get(
         Drupal.settings.basePath + '/?q=lws_finder/site/teaser&name=' + encodeURIComponent(getSelectedLwsNodeTitle()),
         function(data) {
@@ -129,7 +131,7 @@ jQuery(document).ready(function($) {
         }
       );
     }
-  }
+  };
 
   $('#districts-select').change(changeDistrict);
 
