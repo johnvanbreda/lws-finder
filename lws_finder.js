@@ -31,11 +31,13 @@ jQuery(document).ready(function($) {
       function (response, textStatus, jqXHR) {
         select.find('option[value^=]').remove();
         $.each(response, function() {
+          attrs = type==='lws' ? ' data-code="' + this.code + '"' : '';
           select.append('<option value="' + this.id + '"' + attrs + '>' + this.name + '</option>');
         });
         if (type==='lws') {
           applyConditionClasses();
           applyConditionFilter();
+          showOnlySelectedFeatures();
         }
       }
     );
@@ -44,10 +46,25 @@ jQuery(document).ready(function($) {
   function applyConditionClasses() {
     var attrs;
     $.each($('#lws-select option'), function() {
-      if (typeof indiciaData.siteConditions[$(this).html()]!=="undefined") {
-        $(this).addClass(indiciaData.siteConditions[$(this).html()].toLowerCase().replace(/[^a-z0-9]/, '_'));
+      if (typeof indiciaData.siteConditions[$(this).attr('data-nodetitle')]!=="undefined") {
+        $(this).addClass(indiciaData.siteConditions[$(this).val()].toLowerCase().replace(/[^a-z0-9]/, '_'));
       }
     });
+  }
+
+  function showOnlySelectedFeatures() {
+    var i, selected=[];
+    $.each($('#lws-select option'), function() {
+      selected.push($(this).attr('data-code'));
+    });
+    for( var i = 0; i < indiciaData.reportlayer.features.length; i++ ) {
+      if ($.inArray(indiciaData.reportlayer.features[i].attributes.code, selected)>-1) {
+        indiciaData.reportlayer.features[i].style = null;
+      } else {
+        indiciaData.reportlayer.features[i].style = { display: 'none' };
+      }
+    }
+    indiciaData.reportlayer.redraw();
   }
 
   function changeDistrict(e) {
@@ -76,19 +93,37 @@ jQuery(document).ready(function($) {
 
   function changeLws(e) {
     var locationId=$(e.currentTarget).val();
-    putOnMap(locationId);
-    $.get(
-        Drupal.settings.basePath + '/?q=lws_finder/site/teaser&name=' + encodeURIComponent($('#lws-select option:selected').text()),
-        function(data) {
+    if (locationId) {
+      putOnMap(locationId);
+      $.get(
+        Drupal.settings.basePath + '/?q=lws_finder/site/teaser&name=' + encodeURIComponent(getSelectedLwsNodeTitle()),
+        function (data) {
           $('#lws-click-info').html(data);
         }
-    );
+      );
+    } else {
+      $('#lws-click-info').html('');
+    }
+  }
+
+  /**
+   * Returns the expected name of the node associated with the current selected LWS in the select box. This is built
+   * from the template defined in block configuration.
+   * @returns string
+   */
+  function getSelectedLwsNodeTitle() {
+    var $selected = $('#lws-select option:selected'),
+      id = $selected.val(),
+      name = $selected.text(),
+      code = $selected.attr('data-code');
+    return indiciaData.lwsNodeTitleTemplate.replace('{id}', id).replace('{name}', name).replace('{code}', code);
   }
 
   lws_click = function(features) {
     if (features.length>0) {
+      $('#lws-select option[data-code="' + features[0].attributes.code + '"]').attr('selected', true);
       $.get(
-        Drupal.settings.basePath + '/?q=lws_finder/site/teaser&name=' + encodeURIComponent(features[0].attributes.name),
+        Drupal.settings.basePath + '/?q=lws_finder/site/teaser&name=' + encodeURIComponent(getSelectedLwsNodeTitle()),
         function(data) {
           $('#lws-click-info').html(data);
         }
@@ -106,7 +141,8 @@ jQuery(document).ready(function($) {
 
   $('#view-lws').click(function() {
     if ($('#lws-select').val()) {
-      window.location = Drupal.settings.basePath + '/?q=lws_finder/site/route&name=' + encodeURIComponent($('#lws-select option:selected').text())
+      // Redirect to a menu path which will lookup and route to the appropriate site node.
+      window.location = Drupal.settings.basePath + '/?q=lws_finder/site/route&name=' + encodeURIComponent(getSelectedLwsNodeTitle());
     }
   });
 

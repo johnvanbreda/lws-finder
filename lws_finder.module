@@ -127,9 +127,9 @@ function lws_finder_block_configure($delta = '') {
     );
     $form['lws_finder_lws_node_title_template'] = array(
       '#type' => 'textfield',
-      '#title' => t('Drupal field for the condition data'),
-      '#description' => t('Should belong to the content type identified above'),
-      '#default_value' => variable_get('lws_finder_lws_node_title_template', '#name#'),
+      '#title' => t('Node title template'),
+      '#description' => t('Title of LWS site nodes, with {id}, {code} and {name} replacement tokens'),
+      '#default_value' => variable_get('lws_finder_lws_node_title_template', '{name}'),
       '#required' => TRUE
     );
 
@@ -183,24 +183,39 @@ function _lws_finder_filter_pane_markup() {
     'blankText' => lang::get('<please select>'),
     'lookupValues' => $field_info['settings']['allowed_values']
   ));
-  $r .= data_entry_helper::select(array(
-    'fieldname' => 'lws-select',
-    'label' => lang::get('Local Wildlife Sites'),
-    'table' => 'location',
-    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_lws_location_type')),
-    'valueField' => 'id',
-    'captionField' => 'name',
-    'blankText' => lang::get('<please select>'),
-    'afterControl' => '<button type="button" id="view-lws">' . lang::get('View') . '</button>'
-  ));
+  $r .= _lws_finder_lws_select_ctrl($readAuth);
   $reportRequestPath = variable_get('indicia_base_url') . 'index.php/services/report/requestReport?' .
       "auth_token=$readAuth[auth_token]&nonce=$readAuth[nonce]&reportSource=local&";
   data_entry_helper::$javascript .= "indiciaData.reportRequestPath='$reportRequestPath';\n";
   data_entry_helper::$javascript .= "indiciaData.districtTypeId=" . variable_get('lws_finder_district_location_type') . ";\n";
   data_entry_helper::$javascript .= "indiciaData.parishTypeId=" . variable_get('lws_finder_parish_location_type') . ";\n";
   data_entry_helper::$javascript .= "indiciaData.lwsTypeId=" . variable_get('lws_finder_lws_location_type') . ";\n";
+  data_entry_helper::$javascript .= "indiciaData.lwsNodeTitleTemplate='" . variable_get('lws_finder_lws_node_title_template', '{name}') . "';\n";
   _lws_finder_sites_list_data();
   return $r;
+}
+
+function _lws_finder_lws_select_ctrl($readAuth) {
+  // For the list of sites, we will bypass the data entry helper so that we can store the site code in HTML5 data.
+  $sitesLabel = lang::get('Local Wildlife Sites');
+  $sites = data_entry_helper::get_population_data(array(
+    'table' => 'location',
+    'extraParams' => $readAuth + array('location_type_id' => variable_get('lws_finder_lws_location_type'), 'orderby' => 'code,name')
+  ));
+  $options = array('<option value="">&lt;' . lang::get('please select') . '&gt;</option>');
+  foreach ($sites as $site) {
+    $options[] = "<option value=\"$site[id]\" data-code=\"$site[code]\">$site[name]</option>";
+
+  }
+  $options = implode("\n", $options);
+  return <<<siteselect
+<div id="ctrl-wrap-lws-select" class="form-row ctrl-wrap"><label for="lws-select">$sitesLabel:</label>
+<select id="lws-select" name="lws-select">
+$options
+</select>
+<button type="button" id="view-lws">View</button>
+</div>
+siteselect;
 }
 
 function _lws_finder_map_pane_markup() {
@@ -233,7 +248,7 @@ function _lws_finder_map_pane_markup() {
 }
 
 function _lws_finder_click_info_pane_markup() {
-  return '<div id="lws-click-info">Info</div>';
+  return '<div id="lws-click-info"></div>';
 }
 
 /**
