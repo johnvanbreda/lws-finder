@@ -125,6 +125,13 @@ function lws_finder_block_configure($delta = '') {
       '#default_value' => variable_get('lws_finder_lws_condition_field'),
       '#required' => TRUE
     );
+    $form['lws_finder_lws_node_title_template'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Drupal field for the condition data'),
+      '#description' => t('Should belong to the content type identified above'),
+      '#default_value' => variable_get('lws_finder_lws_node_title_template', '#name#'),
+      '#required' => TRUE
+    );
 
   }
   return $form;
@@ -140,6 +147,7 @@ function lws_finder_block_save($delta = '', $edit = array()) {
     variable_set('lws_finder_lws_location_type', $edit['lws_finder_lws_location_type']);
     variable_set('lws_finder_lws_content_type', $edit['lws_finder_lws_content_type']);
     variable_set('lws_finder_lws_condition_field', $edit['lws_finder_lws_condition_field']);
+    variable_set('lws_finder_lws_node_title_template', $edit['lws_finder_lws_node_title_template']);
   }
 }
 

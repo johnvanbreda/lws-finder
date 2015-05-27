@@ -1,0 +1,14 @@
+<?php
+/**
+ * @file
+ * Install, update, and uninstall functions for the LWS Finder module.
+ */
+
+function lws_finder_uninstall() {
+  variable_del('lws_finder_district_location_type');
+  variable_del('lws_finder_parish_location_type');
+  variable_del('lws_finder_lws_location_type');
+  variable_del('lws_finder_lws_content_type');
+  variable_del('lws_finder_lws_condition_field');
+  variable_del('lws_finder_lws_node_title_template');
+}
